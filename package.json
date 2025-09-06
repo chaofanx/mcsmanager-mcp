@@ -1,0 +1,41 @@
+{
+  "name": "mcsmanager-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Minecraft server management",
+  "main": "dist/index.js",
+  "bin": {
+    "mcsmanager-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["mcp", "minecraft", "server", "management", "mcsmanager"],
+  "author": "chaofanx",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chaofanx/mcsmanager-mcp.git"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "package.json"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@10.11.1",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "axios": "^1.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

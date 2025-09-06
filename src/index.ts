@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
 import { MinecraftAPI, MinecraftAPIConfig } from './minecraft-api.js';
 
 // 解析命令行参数
@@ -76,142 +73,65 @@ const config = parseArgs();
 const mcApi = new MinecraftAPI(config);
 
 // 创建 MCP 服务器
-const server = new Server(
+const server = new McpServer({
+  name: 'mcsmanager-mcp',
+  version: '1.0.0',
+  capabilities: {
+    resources: {},
+    tools: {},
+  }
+});
+
+
+// 工具函数
+async function executeCommand(cmd: string): Promise<boolean> {
+  const success = await mcApi.executeServerCommand(cmd) as boolean;
+  return success;
+}
+
+async function getPlayers(): Promise<string[]> {
+  const players = await mcApi.getPlayers() as string[];
+  return players;
+}
+
+async function setWeather(weather: string): Promise<boolean> {
+  const success = await mcApi.setWeather(weather) as boolean;
+  return success;
+}
+
+
+server.tool(
+  'execute_command',
+  '在服务器上执行Minecraft服务端命令',
   {
-    name: 'mcsmanager-mcp',
-    version: '1.0.0',
+    cmd: z.string().describe('要执行的命令'),
   },
+  async ({ cmd }) => {
+    return { content: [{ type: 'text', text: await executeCommand(cmd) ? '命令执行成功' : '命令执行失败' }] };
+  }
+)
+
+server.tool(
+  'get_players',
+  '获取Minecraft服务器当前在线玩家列表',
+  {},
+  async () => {
+    const players = await getPlayers();
+    return { content: [{ type: 'text', text: `当前在线玩家: ${players.length > 0 ? players.join(', ') : '无'}` }] };
+  }
+)
+
+server.tool(
+  'set_weather',
+  '设置Minecraft服务器天气',
   {
-    capabilities: {
-      tools: {},
-    },
+    weather: z.string().describe('天气类型 (clear, rain, thunder)'),
+  },
+  async ({ weather }) => {
+    return { content: [{ type: 'text', text: await setWeather(weather) ? '天气设置成功' : '天气设置失败' }] };
   }
-);
+)
 
-// 注册工具列表
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: 'execute_command',
-        description: '在服务器上执行Minecraft服务端命令',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            cmd: {
-              type: 'string',
-              description: '要执行的命令',
-            },
-          },
-          required: ['cmd'],
-        },
-      },
-      {
-        name: 'get_players',
-        description: '获取Minecraft服务器当前在线玩家列表',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'get_server_status',
-        description: '获取Minecraft服务器状态信息',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'set_weather',
-        description: '设置Minecraft服务器天气',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            weather: {
-              type: 'string',
-              description: '天气类型 (clear, rain, thunder)',
-              enum: ['clear', 'rain', 'thunder'],
-            },
-          },
-          required: ['weather'],
-        },
-      },
-    ],
-  };
-});
-
-// 注册工具处理器
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  try {
-    switch (name) {
-      case 'execute_command': {
-        const { cmd } = args as { cmd: string };
-        const success = await mcApi.executeServerCommand(cmd);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: success ? '命令执行成功' : '命令执行失败',
-            },
-          ],
-        };
-      }
-
-      case 'get_players': {
-        const players = await mcApi.getPlayers();
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `当前在线玩家: ${players.length > 0 ? players.join(', ') : '无'}`,
-            },
-          ],
-        };
-      }
-
-      case 'get_server_status': {
-        const status = await mcApi.getServerStatus();
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(status, null, 2),
-            },
-          ],
-        };
-      }
-
-      case 'set_weather': {
-        const { weather } = args as { weather: string };
-        const success = await mcApi.setWeather(weather);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: success ? `天气设置为 ${weather}` : '天气设置失败',
-            },
-          ],
-        };
-      }
-
-      default:
-        throw new Error(`未知工具: ${name}`);
-    }
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `执行工具时发生错误: ${error}`,
-        },
-      ],
-      isError: true,
-    };
-  }
-});
 
 // 启动服务器
 async function main() {

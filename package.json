@@ -13,7 +13,13 @@
     "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["mcp", "minecraft", "server", "management", "mcsmanager"],
+  "keywords": [
+    "mcp",
+    "minecraft",
+    "server",
+    "management",
+    "mcsmanager"
+  ],
   "author": "chaofanx",
   "license": "MIT",
   "repository": {
@@ -31,7 +37,8 @@
   "packageManager": "pnpm@10.11.1",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",
-    "axios": "^1.11.0"
+    "axios": "^1.11.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

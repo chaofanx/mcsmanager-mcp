@@ -1,3 +1,7 @@
+import * as http from 'http';
+import * as https from 'https';
+import { URL } from 'url';
+
 export interface MinecraftAPIConfig {
   baseUrl: string;
   apiKey: string;
@@ -44,32 +48,55 @@ export class MinecraftAPI {
    */
   private async makeRequest(endpoint: string, params: Record<string, any> = {}): Promise<any> {
     const url = this.buildUrl(endpoint, params);
+    const parsedUrl = new URL(url);
     
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+    return new Promise((resolve, reject) => {
+      const isHttps = parsedUrl.protocol === 'https:';
+      const httpModule = isHttps ? https : http;
       
-      const response = await fetch(url, {
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (isHttps ? 443 : 80),
+        path: parsedUrl.pathname + parsedUrl.search,
         method: 'GET',
-        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
         },
+        timeout: 30000, // 30秒超时
+      };
+      
+      const req = httpModule.request(options, (res) => {
+        let data = '';
+        
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        res.on('end', () => {
+          try {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              const jsonData = JSON.parse(data);
+              resolve(jsonData);
+            } else {
+              reject(new Error(`HTTP error! status: ${res.statusCode}`));
+            }
+          } catch (parseError) {
+            reject(new Error(`Failed to parse JSON response: ${parseError}`));
+          }
+        });
       });
       
-      clearTimeout(timeoutId);
+      req.on('error', (error) => {
+        reject(error);
+      });
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Request timeout'));
+      });
       
-      return await response.json();
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Request timeout');
-      }
-      throw error;
-    }
+      req.end();
+    });
   }
 
   /**
@@ -208,6 +235,6 @@ export class MinecraftAPI {
    * 关闭HTTP客户端
    */
   async close(): Promise<void> {
-    // Fetch API 不需要显式关闭
+    // Node.js 内置 http/https 模块不需要显式关闭
   }
 }

@@ -1,5 +1,3 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
-
 export interface MinecraftAPIConfig {
   baseUrl: string;
   apiKey: string;
@@ -14,20 +12,64 @@ export interface ServerStatus {
 }
 
 export class MinecraftAPI {
-  private client: AxiosInstance;
   private config: MinecraftAPIConfig;
 
   constructor(config: MinecraftAPIConfig) {
     this.config = config;
-    this.client = axios.create({
-      baseURL: config.baseUrl,
-      params: {
-        apikey: config.apiKey,
-        uuid: config.uuid,
-        daemonId: config.daemonId,
-      },
-      timeout: 30000,
+  }
+
+  /**
+   * 构建请求 URL 和参数
+   */
+  private buildUrl(endpoint: string, params: Record<string, any> = {}): string {
+    const url = new URL(endpoint, this.config.baseUrl);
+    
+    // 添加基础参数
+    url.searchParams.set('apikey', this.config.apiKey);
+    url.searchParams.set('uuid', this.config.uuid);
+    url.searchParams.set('daemonId', this.config.daemonId);
+    
+    // 添加额外参数
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        url.searchParams.set(key, String(value));
+      }
     });
+    
+    return url.toString();
+  }
+
+  /**
+   * 执行 HTTP GET 请求
+   */
+  private async makeRequest(endpoint: string, params: Record<string, any> = {}): Promise<any> {
+    const url = this.buildUrl(endpoint, params);
+    
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout');
+      }
+      throw error;
+    }
   }
 
   /**
@@ -37,18 +79,10 @@ export class MinecraftAPI {
    */
   async executeServerCommand(command: string): Promise<boolean> {
     try {
-      const response: AxiosResponse = await this.client.get('/api/protected_instance/command', {
-        params: {
-          command: command,
-        },
+      const resp = await this.makeRequest('/api/protected_instance/command', {
+        command: command,
       });
 
-      if (response.status !== 200) {
-        console.error(`命令执行失败，状态码: ${response.status}`);
-        return false;
-      }
-
-      const resp = response.data;
       if (!resp || resp.status !== '200') {
         console.error(`命令执行失败，响应: ${JSON.stringify(resp)}`);
         return false;
@@ -69,18 +103,10 @@ export class MinecraftAPI {
    */
   async getOutput(size: number = 500): Promise<string> {
     try {
-      const response: AxiosResponse = await this.client.get('/api/protected_instance/outputlog', {
-        params: {
-          size: size,
-        },
+      const resp = await this.makeRequest('/api/protected_instance/outputlog', {
+        size: size,
       });
 
-      if (response.status !== 200) {
-        console.error(`获取输出失败，状态码: ${response.status}`);
-        return '';
-      }
-
-      const resp = response.data;
       if (!resp || resp.status !== '200') {
         console.error(`获取输出失败，响应: ${JSON.stringify(resp)}`);
         return '';
@@ -182,6 +208,6 @@ export class MinecraftAPI {
    * 关闭HTTP客户端
    */
   async close(): Promise<void> {
-    // Axios 客户端不需要显式关闭
+    // Fetch API 不需要显式关闭
   }
 }
